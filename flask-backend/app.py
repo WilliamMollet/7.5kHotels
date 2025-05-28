@@ -1,7 +1,9 @@
 from flask import Flask, request, jsonify
 from pymongo import MongoClient
 from dotenv import load_dotenv
+from bson import json_util, ObjectId
 from flask_cors import CORS
+import json
 import os
 
 load_dotenv()
@@ -211,61 +213,170 @@ def smart_search_multi():
 
     return jsonify(all_results[:20])  # Top 20
 
+# Config
+ALL_CITIES = ["paris", "berlin", "london", "madrid", "rome"]
+ALL_SOURCES = ["airbnb", "booking", "hotelscom"]
+
 @app.route("/value-score", methods=["GET"])
 def value_score():
-    city = request.args.get("city")
-    source = request.args.get("source")  # airbnb, booking, hotelscom
+    city_param = request.args.get("city")
+    source_param = request.args.get("source")
 
-    if not city or not source:
-        return jsonify({"error": "city and source are required"}), 400
+    # Liste des combinaisons à traiter
+    cities = [city_param.lower()] if city_param else ALL_CITIES
+    sources = [source_param.lower()] if source_param else ALL_SOURCES
 
-    collection = get_collection(city, source)
+    all_results = []
 
-    pipeline = [
-        {
-            "$addFields": {
-                "score_per_price": {
-                    "$cond": [
-                        {"$and": [
-                            {"$isNumber": "$rating"},
-                            {"$isNumber": "$price.value"},
-                            {"$ne": ["$price.value", 0]}
-                        ]},
-                        {"$divide": ["$rating", "$price.value"]},
-                        None
-                    ]
+    for city in cities:
+        for source in sources:
+            collection_name = f"{city}_{source}"
+            if collection_name not in db.list_collection_names():
+                continue  # Skip si la collection n'existe pas
+            collection = db[collection_name]
+
+            rating_expr = "$rating" if source == "airbnb" else "$rating.score"
+            price_expr = "$price.value"
+
+            # 1. Statistiques de base
+            stats_pipeline = [
+                {
+                    "$addFields": {
+                        "unified_rating": {
+                            "$convert": {
+                                "input": rating_expr,
+                                "to": "double",
+                                "onError": None,
+                                "onNull": None
+                            }
+                        },
+                        "unified_price": {
+                            "$convert": {
+                                "input": price_expr,
+                                "to": "double",
+                                "onError": None,
+                                "onNull": None
+                            }
+                        }
+                    }
+                },
+                {
+                    "$match": {
+                        "unified_rating": {"$ne": None},
+                        "unified_price": {"$gt": 0}
+                    }
+                },
+                {
+                    "$group": {
+                        "_id": None,
+                        "rating_min": {"$min": "$unified_rating"},
+                        "rating_max": {"$max": "$unified_rating"},
+                        "price_min": {"$min": "$unified_price"},
+                        "price_max": {"$max": "$unified_price"}
+                    }
                 }
-            }
-        },
-        {"$match": {"score_per_price": {"$ne": None}}},
-        {
-            "$group": {
-                "_id": None,
-                "avg_score_per_price": {"$avg": "$score_per_price"},
-                "hotels": {"$push": "$$ROOT"}
-            }
-        },
-        {"$unwind": "$hotels"},
-        {
-            "$addFields": {
-                "hotels.quality_value_score": {
-                    "$multiply": [
-                        {"$divide": [
-                            "$hotels.score_per_price",
-                            "$avg_score_per_price"
-                        ]},
-                        100
-                    ]
-                }
-            }
-        },
-        {"$replaceRoot": {"newRoot": "$hotels"}},
-        {"$sort": {"quality_value_score": -1}},
-        {"$limit": 20}
-    ]
+            ]
 
-    results = list(collection.aggregate(pipeline))
-    return jsonify(results)
+            stats_result = list(collection.aggregate(stats_pipeline))
+            if not stats_result:
+                continue
+            stats = stats_result[0]
+
+            # 2. Pipeline principal
+            pipeline = [
+                {
+                    "$addFields": {
+                        "unified_rating": {
+                            "$convert": {
+                                "input": rating_expr,
+                                "to": "double",
+                                "onError": None,
+                                "onNull": None
+                            }
+                        },
+                        "unified_price": {
+                            "$convert": {
+                                "input": price_expr,
+                                "to": "double",
+                                "onError": None,
+                                "onNull": None
+                            }
+                        }
+                    }
+                },
+                {
+                    "$match": {
+                        "unified_rating": {"$ne": None},
+                        "unified_price": {"$gt": 0}
+                    }
+                },
+                {
+                    "$addFields": {
+                        "normalized_rating": {
+                            "$cond": [
+                                {"$eq": [stats["rating_max"], stats["rating_min"]]},
+                                1,
+                                {
+                                    "$divide": [
+                                        {"$subtract": ["$unified_rating", stats["rating_min"]]},
+                                        stats["rating_max"] - stats["rating_min"]
+                                    ]
+                                }
+                            ]
+                        },
+                        "normalized_price": {
+                            "$cond": [
+                                {"$eq": [stats["price_max"], stats["price_min"]]},
+                                1,
+                                {
+                                    "$divide": [
+                                        {"$subtract": ["$unified_price", stats["price_min"]]},
+                                        stats["price_max"] - stats["price_min"]
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "$addFields": {
+                        "value_score": {
+                            "$subtract": ["$normalized_rating", "$normalized_price"]
+                        }
+                    }
+                },
+                {
+                    "$sort": {"value_score": -1}
+                },
+                {
+                    "$limit": 20
+                },
+                {
+                    "$project": {
+                        "_id": 1,  # Inclure l'id
+                        "title": 1,
+                        "thumbnail": 1,
+                        "link": 1,
+                        "location": 1,
+                        "unified_price": 1,
+                        "unified_rating": 1,
+                        "value_score": 1,
+                        "city": {"$literal": city},
+                        "source": {"$literal": source}
+                    }
+                }
+            ]
+
+
+            results = list(collection.aggregate(pipeline))
+            all_results.extend(results)
+
+    for item in all_results:
+        if "_id" in item and isinstance(item["_id"], ObjectId):
+            item["_id"] = str(item["_id"])
+    return jsonify(all_results)
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
