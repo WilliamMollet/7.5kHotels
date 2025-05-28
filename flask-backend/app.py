@@ -42,5 +42,72 @@ def delete_entry(city, platform):
     result = db[collection_name].delete_one({"title": title})
     return jsonify({"deleted": result.deleted_count})
 
+
+@app.route("/smart-search", methods=["GET"])
+def smart_search():
+    city = request.args.get("city")
+    hotel_type = request.args.get("type")
+    min_price = request.args.get("min_price", type=float)
+    max_price = request.args.get("max_price", type=float)
+    min_score = request.args.get("min_score", type=float)
+    max_distance = request.args.get("max_distance", type=float)
+    sort_by = request.args.get("sort_by", "rating")  # "price", "distance", etc.
+    sort_order = int(request.args.get("sort_order", -1))  # -1 = DESC, 1 = ASC
+
+    if not city:
+        return jsonify({"error": "city is required"}), 400
+
+    collection = db[city]
+    pipeline = []
+
+    match_stage = {}
+
+    if hotel_type:
+        match_stage["type"] = hotel_type
+    if min_price or max_price:
+        match_stage["price.value"] = {}
+        if min_price:
+            match_stage["price.value"]["$gte"] = min_price
+        if max_price:
+            match_stage["price.value"]["$lte"] = max_price
+    if min_score:
+        match_stage["rating.score"] = {"$gte": min_score}
+    if max_distance:
+        match_stage["distanceFromCenter"] = {"$lte": max_distance}
+
+    if match_stage:
+        pipeline.append({"$match": match_stage})
+
+    # Projection pour ne retourner que les champs utiles
+    pipeline.append({
+        "$project": {
+            "_id": 0,
+            "title": 1,
+            "type": 1,
+            "price": 1,
+            "rating": 1,
+            "link": 1,
+            "location": 1,
+            "distanceFromCenter": 1
+        }
+    })
+
+    # Tri dynamique
+    sort_fields = {
+        "price": "price.value",
+        "rating": "rating.score",
+        "distance": "distanceFromCenter"
+    }
+    if sort_by in sort_fields:
+        pipeline.append({
+            "$sort": {sort_fields[sort_by]: sort_order}
+        })
+
+    # Limit optional (e.g., top 10)
+    pipeline.append({"$limit": 20})
+
+    results = list(collection.aggregate(pipeline))
+    return jsonify(results)
+
 if __name__ == '__main__':
     app.run(debug=True)
