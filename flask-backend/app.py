@@ -1,48 +1,44 @@
-import os
-import json
+from flask import Flask, request, jsonify
 from pymongo import MongoClient
 
-# Connexion MongoDB Atlas
+app = Flask(__name__)
+
 client = MongoClient("mongodb+srv://nouha:13leet37@cluster0.u3ke7.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
 db = client["ville_hotels"]
 
-# Dossier contenant les fichiers JSON (relatif à ce fichier)
-folder_path = os.path.join(os.path.dirname(__file__), "cities")
+# CREATE
+@app.route('/<city>/<platform>', methods=['POST'])
+def create_entry(city, platform):
+    data = request.json
+    data["source"] = platform  # Ajouter une info sur la provenance
+    collection_name = f"{city.lower()}_{platform.lower()}"
+    result = db[collection_name].insert_one(data)
+    return jsonify({"_id": str(result.inserted_id)}), 201
 
-# Parcours des fichiers dans le dossier
-for filename in os.listdir(folder_path):
-    if filename.endswith(".json"):
-        city_name = filename.replace(".json", "")
-        file_path = os.path.join(folder_path, filename)
+# READ
+@app.route('/<city>/<platform>', methods=['GET'])
+def get_entries(city, platform):
+    collection_name = f"{city.lower()}_{platform.lower()}"
+    entries = list(db[collection_name].find({}, {'_id': 0}))
+    return jsonify(entries)
 
-        with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+# UPDATE
+@app.route('/<city>/<platform>', methods=['PUT'])
+def update_entry(city, platform):
+    data = request.json
+    title = data.get("title")
+    update_data = data.get("update", {})
+    collection_name = f"{city.lower()}_{platform.lower()}"
+    result = db[collection_name].update_one({"title": title}, {"$set": update_data})
+    return jsonify({"matched": result.matched_count, "modified": result.modified_count})
 
-        airbnb_collection = f"{city_name.lower()}_airbnb"
-        booking_collection = f"{city_name.lower()}_booking"
-        hotelscom_collection = f"{city_name.lower()}_hotelscom"  # ← ajouté
+# DELETE
+@app.route('/<city>/<platform>', methods=['DELETE'])
+def delete_entry(city, platform):
+    title = request.args.get("title")
+    collection_name = f"{city.lower()}_{platform.lower()}"
+    result = db[collection_name].delete_one({"title": title})
+    return jsonify({"deleted": result.deleted_count})
 
-        if airbnb_collection not in db.list_collection_names():
-            airbnb_data = data.get("airbnbHotels", [])
-            if airbnb_data:
-                db[airbnb_collection].insert_many(airbnb_data)
-                print(f"✅ {city_name}: {len(airbnb_data)} logements Airbnb insérés")
-        else:
-            print(f"⏩ {city_name}: Collection {airbnb_collection} déjà existante")
-
-        if booking_collection not in db.list_collection_names():
-            booking_data = data.get("bookingHotels", [])
-            if booking_data:
-                db[booking_collection].insert_many(booking_data)
-                print(f"✅ {city_name}: {len(booking_data)} hôtels Booking insérés")
-        else:
-            print(f"⏩ {city_name}: Collection {booking_collection} déjà existante")
-
-        # ← ajout du traitement hotelsComHotels
-        if hotelscom_collection not in db.list_collection_names():
-            hotelscom_data = data.get("hotelsComHotels", [])
-            if hotelscom_data:
-                db[hotelscom_collection].insert_many(hotelscom_data)
-                print(f"✅ {city_name}: {len(hotelscom_data)} hôtels Hotels.com insérés")
-        else:
-            print(f"⏩ {city_name}: Collection {hotelscom_collection} déjà existante")
+if __name__ == '__main__':
+    app.run(debug=True)
