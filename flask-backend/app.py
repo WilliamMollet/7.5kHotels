@@ -1,7 +1,9 @@
 from flask import Flask, request, jsonify
 from pymongo import MongoClient
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)  # Activer CORS pour toutes les routes
 
 client = MongoClient("mongodb+srv://nouha:13leet37@cluster0.u3ke7.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
 db = client["ville_hotels"]

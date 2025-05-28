@@ -63,14 +63,23 @@
       </div>
     </div>
 
+    <!-- Message d'erreur -->
+    <div v-if="error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+      <span class="block sm:inline">{{ error }}</span>
+    </div>
+
+    <!-- Loading state -->
+    <div v-if="loading" class="flex justify-center items-center py-8">
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+    </div>
+
     <!-- Grille d'hôtels -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <!-- Carte d'hôtel (exemple) -->
-      <div v-for="i in 6" :key="i" class="bg-white rounded-lg shadow-md overflow-hidden">
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div v-for="hotel in hotels" :key="hotel.title" class="bg-white rounded-lg shadow-md overflow-hidden">
         <div class="relative h-48">
           <img 
-            src="https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80" 
-            alt="Hotel" 
+            :src="hotel.thumbnail" 
+            :alt="hotel.title" 
             class="w-full h-full object-cover"
           >
           <div class="absolute top-2 right-2 bg-blue-600 text-white px-2 py-1 rounded-md text-sm">
@@ -78,14 +87,14 @@
           </div>
         </div>
         <div class="p-4">
-          <h3 class="text-lg font-semibold text-gray-900 mb-2">Hôtel de Luxe</h3>
+          <h3 class="text-lg font-semibold text-gray-900 mb-2">{{ hotel.title }}</h3>
           <div class="flex items-center mb-2">
             <span class="text-yellow-400">★</span>
-            <span class="text-gray-600 ml-1">4.8</span>
+            <span class="text-gray-600 ml-1">{{ hotel.rating || 'N/A' }}</span>
           </div>
-          <p class="text-gray-600 text-sm mb-4">Centre-ville, {{ selectedCity }}</p>
+          <p class="text-gray-600 text-sm mb-4">{{ hotel.location || 'Centre-ville' }}, {{ selectedCity }}</p>
           <div class="flex justify-between items-center">
-            <span class="text-lg font-bold text-blue-600">150€</span>
+            <span class="text-lg font-bold text-blue-600">{{ hotel.price?.value || hotel.price }}€</span>
             <span class="text-sm text-gray-500">/nuit</span>
           </div>
         </div>
@@ -99,22 +108,40 @@ const selectedCity = ref('paris')
 const selectedType = ref('airbnb')
 const minPrice = ref('')
 const maxPrice = ref('')
+const hotels = ref([])
+const loading = ref(false)
+const error = ref(null)
+
+const fetchHotels = async () => {
+  loading.value = true
+  error.value = null
+  try {
+    const response = await fetch(`http://localhost:5000/${selectedCity.value}/${selectedType.value}`)
+    if (!response.ok) throw new Error('Erreur lors de la récupération des hôtels')
+    hotels.value = await response.json()
+  } catch (e) {
+    error.value = e.message
+    console.error('Erreur:', e)
+  } finally {
+    loading.value = false
+  }
+}
+
+// Charger les hôtels au montage du composant
+onMounted(() => {
+  fetchHotels()
+})
 
 const resetFilters = () => {
   selectedCity.value = 'paris'
   selectedType.value = 'airbnb'
   minPrice.value = ''
   maxPrice.value = ''
+  fetchHotels()
 }
 
 // Les filtres sont réactifs et mettront à jour l'affichage automatiquement
-watch([selectedCity, selectedType, minPrice, maxPrice], () => {
-  // Ici, vous pourrez ajouter la logique de filtrage quand vous connecterez l'API
-  console.log('Filtres mis à jour:', {
-    city: selectedCity.value,
-    type: selectedType.value,
-    minPrice: minPrice.value,
-    maxPrice: maxPrice.value
-  })
+watch([selectedCity, selectedType], () => {
+  fetchHotels()
 })
 </script> 
