@@ -219,17 +219,26 @@
         <div class="p-12 max-w-7xl mx-auto">
           <div class="flex justify-between items-start mb-8">
             <h1 class="text-5xl font-bold text-gray-900">{{ selectedHotel.title }}</h1>
-            <a 
-              :href="selectedHotel.link" 
-              target="_blank" 
-              class="inline-flex items-center gap-2 bg-blue-600 text-white px-8 py-4 rounded-lg hover:bg-blue-700 transition-colors text-lg"
-            >
-              <span>Voir sur {{ selectedSource }}</span>
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
-                <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
-              </svg>
-            </a>
+            <div class="flex gap-4">
+              <button 
+                @click="toggleFavorite" 
+                class="inline-flex items-center gap-2 bg-yellow-500 text-white px-8 py-4 rounded-lg hover:bg-yellow-600 transition-colors text-lg"
+              >
+                <span v-if="isFavorite">★ Retirer des favoris</span>
+                <span v-else>☆ Ajouter aux favoris</span>
+              </button>
+              <a 
+                :href="selectedHotel.link" 
+                target="_blank" 
+                class="inline-flex items-center gap-2 bg-blue-600 text-white px-8 py-4 rounded-lg hover:bg-blue-700 transition-colors text-lg"
+              >
+                <span>Voir sur {{ selectedSource }}</span>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+                  <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
+                </svg>
+              </a>
+            </div>
           </div>
           
           <!-- Informations principales -->
@@ -294,6 +303,84 @@
                   <h3 class="text-2xl font-medium">Description</h3>
                   <p class="text-gray-600 text-xl">{{ selectedHotel.snippet.text }}</p>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section Commentaires -->
+          <div class="mt-12 border-t pt-8">
+            <h2 class="text-3xl font-semibold mb-8">Commentaires</h2>
+            
+            <!-- Formulaire d'ajout de commentaire -->
+            <div class="bg-gray-50 p-6 rounded-lg mb-8">
+              <h3 class="text-xl font-medium mb-4">Ajouter un commentaire</h3>
+              <form @submit.prevent="submitComment" class="space-y-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">Votre nom</label>
+                  <input 
+                    v-model="newComment.user"
+                    type="text"
+                    required
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Votre nom"
+                  >
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">Note</label>
+                  <div class="flex items-center space-x-2">
+                    <input 
+                      v-model="newComment.rating"
+                      type="number"
+                      min="1"
+                      max="5"
+                      required
+                      class="w-20 px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                    >
+                    <span class="text-gray-500">/ 5</span>
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">Commentaire</label>
+                  <textarea 
+                    v-model="newComment.comment"
+                    rows="4"
+                    required
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Partagez votre expérience..."
+                  ></textarea>
+                </div>
+                <button 
+                  type="submit"
+                  class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  :disabled="submittingComment"
+                >
+                  <span v-if="submittingComment">Envoi en cours...</span>
+                  <span v-else>Publier le commentaire</span>
+                </button>
+              </form>
+            </div>
+
+            <!-- Liste des commentaires -->
+            <div class="space-y-6">
+              <div v-if="comments.length === 0" class="text-gray-500 text-center py-8">
+                Aucun commentaire pour le moment. Soyez le premier à partager votre expérience !
+              </div>
+              <div 
+                v-for="comment in comments" 
+                :key="comment.user + comment.comment"
+                class="bg-white p-6 rounded-lg shadow-sm"
+              >
+                <div class="flex justify-between items-start mb-4">
+                  <div>
+                    <h4 class="font-medium text-gray-900">{{ comment.user }}</h4>
+                    <div class="flex items-center mt-1">
+                      <span class="text-yellow-400">★</span>
+                      <span class="text-gray-600 ml-1">{{ comment.rating }}/5</span>
+                    </div>
+                  </div>
+                  <span class="text-sm text-gray-500">{{ new Date(comment.date).toLocaleDateString() }}</span>
+                </div>
+                <p class="text-gray-600">{{ comment.comment }}</p>
               </div>
             </div>
           </div>
@@ -530,6 +617,15 @@ const editedHotel = ref(null)
 const currentPage = ref(1)
 const pageSize = 20
 const totalResults = ref(0)
+const comments = ref([])
+const submittingComment = ref(false)
+const newComment = ref({
+  user: '',
+  rating: 5,
+  comment: ''
+})
+const isFavorite = ref(false)
+const currentUser = ref('user123') // À remplacer par l'utilisateur connecté
 
 // Si city ou source vient de l'URL, on les "verrouille"
 const cityLocked = computed(() => route.query.city !== undefined)
@@ -604,6 +700,8 @@ watch([selectedCity, selectedSource, title, maxPrice, minPrice], () => {
 
 const goToHotelDetails = (hotel) => {
   selectedHotel.value = hotel
+  fetchComments()
+  checkFavorite()
 }
 
 const closeModal = () => {
@@ -675,6 +773,118 @@ const saveEdit = async () => {
   } catch (e) {
     error.value = e.message
     console.error('Erreur:', e)
+  }
+}
+
+// Fonction pour charger les commentaires
+const fetchComments = async () => {
+  if (!selectedHotel.value) return
+  
+  try {
+    const response = await fetch(
+      `http://localhost:5000/comments?city=${selectedHotel.value.city}&platform=${selectedSource.value}&title=${encodeURIComponent(selectedHotel.value.title)}`
+    )
+    if (!response.ok) throw new Error('Erreur lors de la récupération des commentaires')
+    comments.value = await response.json()
+  } catch (e) {
+    console.error('Erreur:', e)
+  }
+}
+
+// Fonction pour soumettre un nouveau commentaire
+const submitComment = async () => {
+  if (!selectedHotel.value) return
+  
+  submittingComment.value = true
+  try {
+    const response = await fetch('http://localhost:5000/comment', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        city: selectedHotel.value.city,
+        platform: selectedSource.value,
+        title: selectedHotel.value.title,
+        ...newComment.value
+      })
+    })
+    
+    if (!response.ok) throw new Error('Erreur lors de l\'envoi du commentaire')
+    
+    // Réinitialiser le formulaire
+    newComment.value = {
+      user: '',
+      rating: 5,
+      comment: ''
+    }
+    
+    // Recharger les commentaires
+    await fetchComments()
+  } catch (e) {
+    console.error('Erreur:', e)
+    alert('Une erreur est survenue lors de l\'envoi du commentaire')
+  } finally {
+    submittingComment.value = false
+  }
+}
+
+// Fonction pour vérifier si l'hôtel est en favoris
+const checkFavorite = async () => {
+  if (!selectedHotel.value) return
+  
+  try {
+    const response = await fetch(
+      `http://localhost:5000/favorites?user=${currentUser.value}`
+    )
+    if (!response.ok) throw new Error('Erreur lors de la récupération des favoris')
+    const favorites = await response.json()
+    isFavorite.value = favorites.some(fav => 
+      fav.title === selectedHotel.value.title && 
+      fav.city === selectedHotel.value.city && 
+      fav.platform === selectedSource.value
+    )
+  } catch (e) {
+    console.error('Erreur:', e)
+  }
+}
+
+// Fonction pour ajouter/supprimer des favoris
+const toggleFavorite = async () => {
+  if (!selectedHotel.value) return
+  
+  try {
+    if (isFavorite.value) {
+      // Supprimer des favoris
+      await fetch('http://localhost:5000/favorites', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user: currentUser.value,
+          title: selectedHotel.value.title
+        })
+      })
+    } else {
+      // Ajouter aux favoris
+      await fetch('http://localhost:5000/favorites', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user: currentUser.value,
+          city: selectedHotel.value.city,
+          platform: selectedSource.value,
+          title: selectedHotel.value.title
+        })
+      })
+    }
+    isFavorite.value = !isFavorite.value
+  } catch (e) {
+    console.error('Erreur:', e)
+    alert('Une erreur est survenue lors de la modification des favoris')
   }
 }
 </script> 
