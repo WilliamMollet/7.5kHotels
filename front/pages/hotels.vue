@@ -99,13 +99,13 @@
             <span class="text-yellow-400">★</span>
             <span class="text-gray-600 ml-1">
               <template v-if="selectedType === 'airbnb'">
-                {{ hotel.rating || 'N/A' }}
+                {{ hotel.unified_rating || 'N/A' }}
               </template>
               <template v-else-if="selectedType === 'booking'">
-                {{ hotel.rating?.score || 'N/A' }}
+                {{ hotel.unified_rating?.score || 'N/A' }}
               </template>
               <template v-else>
-                {{ hotel.rating || 'N/A' }}
+                {{ hotel.unified_rating || 'N/A' }}
               </template>
             </span>
           </div>
@@ -120,13 +120,13 @@
           <div class="flex justify-between items-center">
             <span class="text-lg font-bold text-blue-600">
               <template v-if="selectedType === 'airbnb'">
-                {{ hotel.price?.value || hotel.price }}€
+                {{ hotel.unified_price?.value || hotel.unified_price }}€
               </template>
               <template v-else-if="selectedType === 'booking'">
-                {{ hotel.price?.value || hotel.price }}€
+                {{ hotel.unified_price?.value || hotel.unified_price }}€
               </template>
               <template v-else>
-                {{ hotel.price?.value || hotel.price }}€
+                {{ hotel.unified_price?.value || hotel.unified_price }}€
               </template>
             </span>
             <span class="text-sm text-gray-500">/nuit</span>
@@ -211,13 +211,13 @@
                   <span class="text-yellow-400 text-3xl mr-4">★</span>
                   <span class="text-gray-600 text-2xl">
                     <template v-if="selectedType === 'airbnb'">
-                      {{ selectedHotel.rating || 'N/A' }}
+                      {{ selectedHotel.unified_rating || 'N/A' }}
                     </template>
                     <template v-else-if="selectedType === 'booking'">
-                      {{ selectedHotel.rating?.score || 'N/A' }}
+                      {{ selectedHotel.unified_rating?.score || 'N/A' }}
                     </template>
                     <template v-else>
-                      {{ selectedHotel.rating || 'N/A' }}
+                      {{ selectedHotel.unified_rating || 'N/A' }}
                     </template>
                   </span>
                 </div>
@@ -230,7 +230,7 @@
                   </template>
                 </div>
                 <div class="text-4xl font-bold text-blue-600">
-                  {{ selectedHotel.price?.value || selectedHotel.price }}€ <span class="text-2xl font-normal text-gray-500">/nuit</span>
+                  {{ selectedHotel.unified_price?.value || selectedHotel.unified_price }}€ <span class="text-2xl font-normal text-gray-500">/nuit</span>
                 </div>
               </div>
             </div>
@@ -541,7 +541,7 @@ const fetchHotels = async () => {
 const filterHotels = () => {
   hotels.value = allHotels.value.filter(hotel => {
     const matchesCity = selectedCity.value === 'all' || hotel.city === selectedCity.value
-    const price = hotel.price?.value || hotel.price
+    const price = hotel.unified_price?.value || hotel.unified_price
     const matchesMinPrice = !minPrice.value || price >= Number(minPrice.value)
     const matchesMaxPrice = !maxPrice.value || price <= Number(maxPrice.value)
     return matchesCity && matchesMinPrice && matchesMaxPrice
@@ -550,7 +550,7 @@ const filterHotels = () => {
 
 // Charger les hôtels au montage du composant
 onMounted(() => {
-  fetchAllHotels()
+  fetchHotels()
 })
 
 const resetFilters = () => {
@@ -558,7 +558,7 @@ const resetFilters = () => {
   selectedSource.value = 'toutes'
   minPrice.value = ''
   maxPrice.value = ''
-  fetchAllHotels()
+  fetchHotels()
 }
 
 // Les filtres sont réactifs et mettront à jour l'affichage automatiquement
@@ -584,7 +584,7 @@ const deleteHotel = async () => {
     )
     if (!response.ok) throw new Error('Erreur lors de la suppression')
     // Mettre à jour la liste des hôtels
-    await fetchAllHotels()
+    await fetchHotels()
     closeModal()
   } catch (e) {
     error.value = e.message
@@ -630,7 +630,7 @@ const saveEdit = async () => {
       }
     )
     if (!response.ok) throw new Error('Erreur lors de la modification')
-    await fetchAllHotels()
+    await fetchHotels()
     editMode.value = false
     selectedHotel.value = dataToSend
   } catch (e) {
