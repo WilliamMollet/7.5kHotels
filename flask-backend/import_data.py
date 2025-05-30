@@ -1,118 +1,62 @@
+import os
+import json
 from pymongo import MongoClient
-from dotenv import load_dotenv
-from flask import Flask, request, jsonify
+from dotenv import load_dotenv  
 
-
+# Charger les variables d’environnement
 load_dotenv()
 mongo_uri = os.getenv("MONGO_CLIENT")
-
-app = Flask(__name__)
 
 # Connexion MongoDB Atlas
 client = MongoClient(mongo_uri)
 db = client["ville_hotels"]
 
-# CREATE
-@app.route('/<city>/<platform>', methods=['POST'])
-def create_entry(city, platform):
-    data = request.json
-    data["source"] = platform
-    collection_name = f"{city.lower()}_{platform.lower()}"
-    result = db[collection_name].insert_one(data)
-    return jsonify({"_id": str(result.inserted_id)}), 201
+# Dossier contenant les fichiers JSON
+folder_path = os.path.join(os.path.dirname(__file__), "cities")
 
-# READ
-@app.route('/<city>/<platform>', methods=['GET'])
-def get_entries(city, platform):
-    collection_name = f"{city.lower()}_{platform.lower()}"
-    entries = list(db[collection_name].find({}, {'_id': 0}))
-    return jsonify(entries)
+# Parcours des fichiers dans le dossier
+for filename in os.listdir(folder_path):
+    if filename.endswith(".json"):
+        city_name = filename.replace(".json", "")
+        file_path = os.path.join(folder_path, filename)
 
-# UPDATE
-@app.route('/<city>/<platform>', methods=['PUT'])
-def update_entry(city, platform):
-    data = request.json
-    title = data.get("title")
-    update_data = data.get("update", {})
-    collection_name = f"{city.lower()}_{platform.lower()}"
-    result = db[collection_name].update_one({"title": title}, {"$set": update_data})
-    return jsonify({"matched": result.matched_count, "modified": result.modified_count})
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
 
-# DELETE
-@app.route('/<city>/<platform>', methods=['DELETE'])
-def delete_entry(city, platform):
-    title = request.args.get("title")
-    collection_name = f"{city.lower()}_{platform.lower()}"
-    result = db[collection_name].delete_one({"title": title})
-    return jsonify({"deleted": result.deleted_count})
+        # Nom des collections
+        airbnb_collection = f"{city_name.lower()}_airbnb"
+        booking_collection = f"{city_name.lower()}_booking"
+        hotelscom_collection = f"{city_name.lower()}_hotelscom"
 
-# ADD COMMENT
-@app.route('/comment', methods=['POST'])
-def add_comment():
-    data = request.json
-    city = data.get("city")
-    platform = data.get("platform")
-    title = data.get("title")
-    comment = {
-        "comment": data.get("comment"),
-        "rating": data.get("rating"),
-        "user": data.get("user")
-    }
-    db["comments"].insert_one({
-        "city": city,
-        "platform": platform,
-        "title": title,
-        **comment
-    })
-    return jsonify({"message": "Comment added successfully"})
+        # Insertion des données Airbnb
+        if airbnb_collection not in db.list_collection_names():
+            airbnb_data = data.get("airbnbHotels", [])
+            if airbnb_data:
+                db[airbnb_collection].insert_many(airbnb_data)
+                print(f"✅ {city_name}: {len(airbnb_data)} logements Airbnb insérés")
+            else:
+                print(f"⚠️ {city_name}: Pas de données Airbnb")
+        else:
+            print(f"⏩ {city_name}: Collection {airbnb_collection} déjà existante")
 
-# GET COMMENTS
-@app.route('/comments', methods=['GET'])
-def get_comments():
-    city = request.args.get("city")
-    platform = request.args.get("platform")
-    title = request.args.get("title")
+        # Insertion des données Booking
+        if booking_collection not in db.list_collection_names():
+            booking_data = data.get("bookingHotels", [])
+            if booking_data:
+                db[booking_collection].insert_many(booking_data)
+                print(f"✅ {city_name}: {len(booking_data)} hôtels Booking insérés")
+            else:
+                print(f"⚠️ {city_name}: Pas de données Booking")
+        else:
+            print(f"⏩ {city_name}: Collection {booking_collection} déjà existante")
 
-    query = {}
-    if city: query["city"] = city
-    if platform: query["platform"] = platform
-    if title: query["title"] = title
-
-    comments = list(db["comments"].find(query, {"_id": 0}))
-    return jsonify(comments)
-
-# ADD TO FAVORITES
-@app.route('/favorites', methods=['POST'])
-def add_favorite():
-    data = request.json
-    favorite = {
-        "user": data.get("user"),
-        "city": data.get("city"),
-        "platform": data.get("platform"),
-        "title": data.get("title")
-    }
-    db["favorites"].insert_one(favorite)
-    return jsonify({"message": "Hotel added to favorites"})
-
-# GET FAVORITES
-@app.route('/favorites', methods=['GET'])
-def get_favorites():
-    user = request.args.get("user")
-    if not user:
-        return jsonify({"error": "User is required"}), 400
-
-    favorites = list(db["favorites"].find({"user": user}, {"_id": 0}))
-    return jsonify(favorites)
-
-# Optionnel : DELETE FAVORITE
-@app.route('/favorites', methods=['DELETE'])
-def delete_favorite():
-    data = request.json
-    user = data.get("user")
-    title = data.get("title")
-    result = db["favorites"].delete_one({"user": user, "title": title})
-    return jsonify({"deleted": result.deleted_count})
-
-# Lancement
-if __name__ == '__main__':
-    app.run(debug=True)
+        # Insertion des données Hotels.com
+        if hotelscom_collection not in db.list_collection_names():
+            hotelscom_data = data.get("hotelsComHotels", [])
+            if hotelscom_data:
+                db[hotelscom_collection].insert_many(hotelscom_data)
+                print(f"✅ {city_name}: {len(hotelscom_data)} hôtels Hotels.com insérés")
+            else:
+                print(f"⚠️ {city_name}: Pas de données Hotels.com")
+        else:
+            print(f"⏩ {city_name}: Collection {hotelscom_collection} déjà existante")
