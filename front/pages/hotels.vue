@@ -54,6 +54,15 @@
             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">€</span>
           </div>
         </div>
+        <div class="flex-1 min-w-[200px]">
+          <label class="block text-sm font-medium text-gray-700 mb-2">Titre de la chambre</label>
+          <input
+            type="text"
+            v-model="title"
+            placeholder="Rechercher un titre..."
+            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-white"
+          >
+        </div>
 
         <!-- Bouton Réinitialiser -->
         <button 
@@ -98,10 +107,10 @@
           <div class="flex items-center mb-2">
             <span class="text-yellow-400">★</span>
             <span class="text-gray-600 ml-1">
-              <template v-if="selectedType === 'airbnb'">
+              <template v-if="SelectedSource === 'airbnb'">
                 {{ hotel.unified_rating || 'N/A' }}
               </template>
-              <template v-else-if="selectedType === 'booking'">
+              <template v-else-if="SelectedSource === 'booking'">
                 {{ hotel.unified_rating?.score || 'N/A' }}
               </template>
               <template v-else>
@@ -110,7 +119,7 @@
             </span>
           </div>
           <p class="text-gray-600 text-sm mb-4">
-            <template v-if="selectedType === 'airbnb'">
+            <template v-if="SelectedSource === 'airbnb'">
               {{ hotel.subtitles?.[0] || 'Centre-ville' }}, {{ hotel.city }}
             </template>
             <template v-else>
@@ -119,10 +128,10 @@
           </p>
           <div class="flex justify-between items-center">
             <span class="text-lg font-bold text-blue-600">
-              <template v-if="selectedType === 'airbnb'">
+              <template v-if="SelectedSource === 'airbnb'">
                 {{ hotel.unified_price?.value || hotel.unified_price }}€
               </template>
-              <template v-else-if="selectedType === 'booking'">
+              <template v-else-if="SelectedSource === 'booking'">
                 {{ hotel.unified_price?.value || hotel.unified_price }}€
               </template>
               <template v-else>
@@ -132,13 +141,13 @@
             <span class="text-sm text-gray-500">/nuit</span>
           </div>
           <!-- Badges pour Booking -->
-          <div v-if="selectedType === 'booking'" class="mt-2 flex flex-wrap gap-2">
+          <div v-if="SelectedSource === 'booking'" class="mt-2 flex flex-wrap gap-2">
             <span v-if="hotel.preferredBadge" class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">Préféré</span>
             <span v-if="hotel.promotedBadge" class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Promu</span>
             <span v-if="hotel.sustainability" class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Écologique</span>
           </div>
           <!-- Highlights pour Booking -->
-          <div v-if="selectedType === 'booking' && hotel.highlights" class="mt-2">
+          <div v-if="SelectedSource === 'booking' && hotel.highlights" class="mt-2">
             <ul class="text-xs text-gray-600 space-y-1">
               <li v-for="(highlight, index) in hotel.highlights.slice(0, 2)" :key="index">
                 {{ highlight }}
@@ -146,11 +155,32 @@
             </ul>
           </div>
           <!-- Snippet pour Hotels.com -->
-          <div v-if="selectedType === 'hotelscom' && hotel.snippet" class="mt-2">
+          <div v-if="SelectedSource === 'hotelscom' && hotel.snippet" class="mt-2">
             <p class="text-xs text-gray-600">{{ hotel.snippet.text }}</p>
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Pagination -->
+    <div class="flex justify-center mt-6 space-x-2">
+      <button
+        :disabled="currentPage === 1"
+        @click="currentPage-- && fetchHotels()"
+        class="px-4 py-2 bg-blue-500 text-white rounded disabled:opacity-50"
+      >
+        Précédent
+      </button>
+      <span class="px-4 py-2 bg-gray-100 text-gray-800 rounded">
+        Page {{ currentPage }} / {{ Math.ceil(totalResults / pageSize) }}
+      </span>
+      <button
+        :disabled="currentPage >= Math.ceil(totalResults / pageSize)"
+        @click="currentPage++ && fetchHotels()"
+        class="px-4 py-2 bg-blue-500 text-white rounded disabled:opacity-50"
+      >
+        Suivant
+      </button>
     </div>
 
     <!-- Modal de détails de l'hôtel -->
@@ -194,7 +224,7 @@
               target="_blank" 
               class="inline-flex items-center gap-2 bg-blue-600 text-white px-8 py-4 rounded-lg hover:bg-blue-700 transition-colors text-lg"
             >
-              <span>Voir sur {{ selectedType }}</span>
+              <span>Voir sur {{ SelectedSource }}</span>
               <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
                 <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
@@ -210,10 +240,10 @@
                 <div class="flex items-center">
                   <span class="text-yellow-400 text-3xl mr-4">★</span>
                   <span class="text-gray-600 text-2xl">
-                    <template v-if="selectedType === 'airbnb'">
+                    <template v-if="SelectedSource === 'airbnb'">
                       {{ selectedHotel.unified_rating || 'N/A' }}
                     </template>
-                    <template v-else-if="selectedType === 'booking'">
+                    <template v-else-if="SelectedSource === 'booking'">
                       {{ selectedHotel.unified_rating?.score || 'N/A' }}
                     </template>
                     <template v-else>
@@ -222,7 +252,7 @@
                   </span>
                 </div>
                 <div class="text-gray-600 text-2xl">
-                  <template v-if="selectedType === 'airbnb'">
+                  <template v-if="SelectedSource === 'airbnb'">
                     {{ selectedHotel.subtitles?.[0] || 'Centre-ville' }}, {{ selectedHotel.city }}
                   </template>
                   <template v-else>
@@ -240,14 +270,14 @@
               <h2 class="text-3xl font-semibold mb-8">Caractéristiques</h2>
               <div class="space-y-8">
                 <!-- Badges pour Booking -->
-                <div v-if="selectedType === 'booking'" class="flex flex-wrap gap-4">
+                <div v-if="SelectedSource === 'booking'" class="flex flex-wrap gap-4">
                   <span v-if="selectedHotel.preferredBadge" class="text-lg bg-yellow-100 text-yellow-800 px-6 py-3 rounded">Préféré</span>
                   <span v-if="selectedHotel.promotedBadge" class="text-lg bg-green-100 text-green-800 px-6 py-3 rounded">Promu</span>
                   <span v-if="selectedHotel.sustainability" class="text-lg bg-blue-100 text-blue-800 px-6 py-3 rounded">Écologique</span>
                 </div>
                 
                 <!-- Highlights pour Booking -->
-                <div v-if="selectedType === 'booking' && selectedHotel.highlights" class="space-y-4">
+                <div v-if="SelectedSource === 'booking' && selectedHotel.highlights" class="space-y-4">
                   <h3 class="text-2xl font-medium">Points forts</h3>
                   <ul class="text-gray-600 space-y-3 text-xl">
                     <li v-for="(highlight, index) in selectedHotel.highlights" :key="index" class="flex items-center gap-3">
@@ -260,7 +290,7 @@
                 </div>
 
                 <!-- Snippet pour Hotels.com -->
-                <div v-if="selectedType === 'hotelscom' && selectedHotel.snippet" class="space-y-4">
+                <div v-if="SelectedSource === 'hotelscom' && selectedHotel.snippet" class="space-y-4">
                   <h3 class="text-2xl font-medium">Description</h3>
                   <p class="text-gray-600 text-xl">{{ selectedHotel.snippet.text }}</p>
                 </div>
@@ -366,7 +396,7 @@
           </div>
 
           <!-- Badges pour Booking -->
-          <div v-if="selectedType === 'booking'" class="space-y-4">
+          <div v-if="SelectedSource === 'booking'" class="space-y-4">
             <h4 class="text-lg font-medium">Badges</h4>
             <div class="flex gap-4">
               <label class="flex items-center">
@@ -397,7 +427,7 @@
           </div>
 
           <!-- Champs spécifiques à Airbnb -->
-          <div v-if="selectedType === 'airbnb'" class="space-y-4">
+          <div v-if="SelectedSource === 'airbnb'" class="space-y-4">
             <h4 class="text-lg font-medium">Informations Airbnb</h4>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">Sous-titre</label>
@@ -410,7 +440,7 @@
           </div>
 
           <!-- Champs spécifiques à Booking -->
-          <div v-if="selectedType === 'booking'" class="space-y-4">
+          <div v-if="SelectedSource === 'booking'" class="space-y-4">
             <h4 class="text-lg font-medium">Informations Booking</h4>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">Points forts</label>
@@ -443,7 +473,7 @@
           </div>
 
           <!-- Champs spécifiques à Hotels.com -->
-          <div v-if="selectedType === 'hotelscom'" class="space-y-4">
+          <div v-if="SelectedSource === 'hotelscom'" class="space-y-4">
             <h4 class="text-lg font-medium">Informations Hotels.com</h4>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
@@ -488,6 +518,7 @@ const selectedCity = ref(cityFromURL)
 const selectedSource = ref(sourceFromURL)
 const minPrice = ref('')
 const maxPrice = ref('')
+const title = ref('')
 const hotels = ref([])
 const allHotels = ref([])
 const loading = ref(false)
@@ -496,6 +527,9 @@ const selectedHotel = ref(null)
 const showDeleteConfirm = ref(false)
 const editMode = ref(false)
 const editedHotel = ref(null)
+const currentPage = ref(1)
+const pageSize = 20
+const totalResults = ref(0)
 
 // Si city ou source vient de l'URL, on les "verrouille"
 const cityLocked = computed(() => route.query.city !== undefined)
@@ -503,36 +537,37 @@ const sourceLocked = computed(() => route.query.source !== undefined)
 
 const fetchHotels = async () => {
   loading.value = true
-  error.value = null
-
   try {
-    const params = new URLSearchParams()
-
-    if (selectedCity.value.toLowerCase() !== 'toutes') {
-      params.append('city', selectedCity.value)
+    const params: any = {
+      offset: (currentPage.value - 1) * pageSize,
+      limit: pageSize,
     }
 
-    if (selectedSource.value.toLowerCase() !== 'toutes') {
-      params.append('source', selectedSource.value)
+    if (selectedCity.value !== 'toutes') {
+      params.city = selectedCity.value
     }
-
+    if (selectedSource.value !== 'toutes') {
+      params.source = selectedSource.value
+    }
     if (minPrice.value) {
-      params.append('minPrice', minPrice.value)
+      params.min_price = minPrice.value
     }
-
     if (maxPrice.value) {
-      params.append('maxPrice', maxPrice.value)
+      params.max_price = maxPrice.value
+    }
+    if (title.value) {
+      params.title_contains = title.value
     }
 
-    const url = `http://localhost:5000/smart-search?${params.toString()}`
-    const response = await fetch(url)
+    // Exemple d'appel avec Fetch ou $fetch
 
-    if (!response.ok) throw new Error('Erreur lors de la récupération des hôtels')
-
-    hotels.value = await response.json()
-  } catch (e) {
-    error.value = e.message
-    console.error('Erreur:', e)
+    
+    const response = await $fetch('http://localhost:5000/smart-search', { params })
+    hotels.value = response.results
+    console.log('Hôtels récupérés:', hotels.value)
+    totalResults.value = response.total
+  } catch (err) {
+    error.value = err
   } finally {
     loading.value = false
   }
@@ -554,15 +589,16 @@ onMounted(() => {
 })
 
 const resetFilters = () => {
-  selectedCity.value = 'toutes'
-  selectedSource.value = 'toutes'
+  if (!cityLocked.value) selectedCity.value = 'toutes'
+  if (!sourceLocked.value) selectedSource.value = 'toutes'
   minPrice.value = ''
   maxPrice.value = ''
-  fetchHotels()
+  title.value = ''
 }
 
 // Les filtres sont réactifs et mettront à jour l'affichage automatiquement
-watch([selectedCity, selectedSource], () => {
+watch([selectedCity, selectedSource, title, maxPrice, minPrice], () => {
+  currentPage.value = 1
   fetchHotels()
 })
 
@@ -579,7 +615,7 @@ const closeModal = () => {
 const deleteHotel = async () => {
   try {
     const response = await fetch(
-      `http://localhost:5000/${selectedHotel.value.city}/${selectedType.value}?title=${encodeURIComponent(selectedHotel.value.title)}`,
+      `http://localhost:5000/${selectedHotel.value.city}/${SelectedSource.value}?title=${encodeURIComponent(selectedHotel.value.title)}`,
       { method: 'DELETE' }
     )
     if (!response.ok) throw new Error('Erreur lors de la suppression')
@@ -616,11 +652,11 @@ const saveEdit = async () => {
       price: {
         value: Number(editedHotel.value.price)
       },
-      rating: selectedType.value === 'booking' ? { score: Number(editedHotel.value.rating) } : Number(editedHotel.value.rating)
+      rating: SelectedSource.value === 'booking' ? { score: Number(editedHotel.value.rating) } : Number(editedHotel.value.rating)
     }
 
     const response = await fetch(
-      `http://localhost:5000/${editedHotel.value.city}/${selectedType.value}?title=${encodeURIComponent(editedHotel.value.title)}`,
+      `http://localhost:5000/${editedHotel.value.city}/${SelectedSource.value}?title=${encodeURIComponent(editedHotel.value.title)}`,
       {
         method: 'PUT',
         headers: {

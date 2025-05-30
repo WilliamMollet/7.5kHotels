@@ -92,6 +92,8 @@ def smart_search():
     min_score = request.args.get("min_score", type=float)
     max_distance = request.args.get("max_distance", type=float)
     title_contains = request.args.get("title_contains")
+    offset = request.args.get("offset", default=0, type=int)
+    limit = request.args.get("limit", default=20, type=int)
 
     sort_by = request.args.get("sort_by", "rating")
     sort_order = int(request.args.get("sort_order", -1))
@@ -169,7 +171,13 @@ def smart_search():
     all_results = [r for r in all_results if r.get(sort_key) is not None]
     all_results.sort(key=lambda x: x.get(sort_key), reverse=(sort_order == -1))
 
-    return jsonify(all_results[:20])
+    # Pagination
+    paginated = all_results[offset:offset + limit]
+
+    return jsonify({
+        "results": paginated,
+        "total": len(all_results)
+    })
 
 # Config
 ALL_CITIES = ["paris", "berlin", "london", "madrid", "rome"]
