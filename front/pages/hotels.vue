@@ -354,7 +354,7 @@
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">Prix par nuit (€)</label>
             <input 
-              v-model="editedHotel.price"
+              v-model="editedHotel.unified_price"
               type="number"
               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
               required
@@ -375,7 +375,7 @@
           </div>
 
           <!-- Localisation -->
-          <div>
+          <div v-if="selectedSource !== 'airbnb'">
             <label class="block text-sm font-medium text-gray-700 mb-2">Localisation</label>
             <input 
               v-model="editedHotel.location"
@@ -614,8 +614,11 @@ const closeModal = () => {
 
 const deleteHotel = async () => {
   try {
+    // Déterminer la source de l'hôtel
+    const source = selectedHotel.value.source || selectedSource.value
+    
     const response = await fetch(
-      `http://localhost:5000/${selectedHotel.value.city}/${SelectedSource.value}?title=${encodeURIComponent(selectedHotel.value.title)}`,
+      `http://localhost:5000/${selectedHotel.value.city}/${source}?title=${encodeURIComponent(selectedHotel.value.title)}`,
       { method: 'DELETE' }
     )
     if (!response.ok) throw new Error('Erreur lors de la suppression')
@@ -633,7 +636,7 @@ const startEdit = () => {
   editedHotel.value = {
     ...selectedHotel.value,
     price: selectedHotel.value.price?.value || selectedHotel.value.price,
-    rating: selectedHotel.value.rating?.score || selectedHotel.value.rating,
+    rating: selectedSource.value === 'booking' ? { score: selectedHotel.value.rating?.score || selectedHotel.value.rating } : selectedHotel.value.rating,
     // Pour Airbnb
     subtitles: selectedHotel.value.subtitles || [],
     // Pour Booking
@@ -652,11 +655,11 @@ const saveEdit = async () => {
       price: {
         value: Number(editedHotel.value.price)
       },
-      rating: SelectedSource.value === 'booking' ? { score: Number(editedHotel.value.rating) } : Number(editedHotel.value.rating)
+      rating: selectedSource.value === 'booking' ? { score: Number(editedHotel.value.rating) } : Number(editedHotel.value.rating)
     }
 
     const response = await fetch(
-      `http://localhost:5000/${editedHotel.value.city}/${SelectedSource.value}?title=${encodeURIComponent(editedHotel.value.title)}`,
+      `http://localhost:5000/${editedHotel.value.city}/${selectedSource.value}?title=${encodeURIComponent(editedHotel.value.title)}`,
       {
         method: 'PUT',
         headers: {
