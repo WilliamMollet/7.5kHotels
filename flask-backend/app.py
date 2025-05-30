@@ -5,6 +5,8 @@ from bson import json_util, ObjectId
 from flask_cors import CORS
 import json
 import os
+import re
+from bson.objectid import ObjectId
 
 load_dotenv()
 mongo_uri = os.getenv("MONGO_CLIENT")
@@ -49,6 +51,22 @@ def delete_entry(city, platform):
     result = db[collection_name].delete_one({"title": title})
     return jsonify({"deleted": result.deleted_count})
 
+# Nouvelle route pour récupérer tous les hôtels
+@app.route('/all/<platform>', methods=['GET'])
+def get_all_entries(platform):
+    all_hotels = []
+    # Récupérer toutes les collections qui correspondent à la plateforme
+    collections = [col for col in db.list_collection_names() if col.endswith(f"_{platform.lower()}")]
+    
+    for collection in collections:
+        hotels = list(db[collection].find({}, {'_id': 0}))
+        # Ajouter la ville à chaque hôtel
+        city = collection.split('_')[0]
+        for hotel in hotels:
+            hotel['city'] = city
+        all_hotels.extend(hotels)
+    
+    return jsonify(all_hotels)
 
 def get_collection(city, source):
     return db[f"{city.lower()}_{source.lower()}"]
