@@ -1,8 +1,10 @@
+
 from flask import Flask, request, jsonify
 from pymongo import MongoClient
 
 app = Flask(__name__)
 
+# Connexion MongoDB Atlas
 client = MongoClient("mongodb+srv://nouha:13leet37@cluster0.u3ke7.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
 db = client["ville_hotels"]
 
@@ -39,6 +41,29 @@ def delete_entry(city, platform):
     collection_name = f"{city.lower()}_{platform.lower()}"
     result = db[collection_name].delete_one({"title": title})
     return jsonify({"deleted": result.deleted_count})
+
+# COMMENTAIRE / NOTE
+@app.route('/comment', methods=['POST'])
+def add_comment():
+    data = request.json
+    required_fields = ["city", "platform", "title", "comment"]
+
+    # Vérification des champs requis
+    for field in required_fields:
+        if field not in data:
+            return jsonify({"error": f"Missing field: {field}"}), 400
+
+    comment = {
+        "city": data["city"].lower(),
+        "platform": data["platform"].lower(),
+        "title": data["title"],
+        "comment": data["comment"],
+        "rating": data.get("rating"),  # optionnel
+        "user": data.get("user"),      # optionnel
+    }
+
+    db["comments"].insert_one(comment)
+    return jsonify({"message": "Comment added successfully"}), 201
 
 if __name__ == '__main__':
     app.run(debug=True)
