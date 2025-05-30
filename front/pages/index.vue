@@ -22,6 +22,24 @@
               </div>
             </div>
           </main>
+          <div class="mt-10 flex flex-wrap gap-4">
+            <NuxtLink
+              v-for="city in cities"
+              :key="city"
+              :to="`/hotels?city=${city}`"
+              class="px-4 py-2 bg-blue-100 text-blue-800 rounded hover:bg-blue-200"
+            >
+              Hôtels à {{ city.charAt(0).toUpperCase() + city.slice(1) }}
+            </NuxtLink>
+            <NuxtLink
+              v-for="source in sources"
+              :key="source"
+              :to="`/hotels?source=${source}`"
+              class="px-4 py-2 bg-green-100 text-green-800 rounded hover:bg-green-200"
+            >
+              Source : {{ source }}
+            </NuxtLink>
+          </div>
         </div>
       </div>
     </div>
@@ -76,4 +94,7 @@
 definePageMeta({
   layout: 'default'
 })
+
+const cities = ["paris", "berlin", "london", "madrid", "rome"]
+const sources = ["airbnb", "booking", "hotelscom"]
 </script> 

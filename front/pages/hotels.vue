@@ -4,9 +4,10 @@
     <div class="bg-white p-6 rounded-lg shadow-md mb-8">
       <div class="flex flex-wrap items-end gap-4">
         <!-- Filtre Ville -->
-        <div class="flex-1 min-w-[200px]">
+        <div class="flex-1 min-w-[200px]" :hidden="cityLocked">
           <label class="block text-sm font-medium text-gray-700 mb-2">Ville</label>
           <select v-model="selectedCity" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-white">
+            <option value="toutes">Toutes</option>
             <option value="paris">Paris</option>
             <option value="london">London</option>
             <option value="berlin">Berlin</option>
@@ -15,10 +16,11 @@
           </select>
         </div>
 
-        <!-- Filtre Type d'hébergement -->
-        <div class="flex-1 min-w-[200px]">
-          <label class="block text-sm font-medium text-gray-700 mb-2">Type d'hébergement</label>
-          <select v-model="selectedType" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-white">
+        <!-- Filtre Source d'hébergement -->
+        <div class="flex-1 min-w-[200px]" :hidden="sourceLocked">
+          <label class="block text-sm font-medium text-gray-700 mb-2">Source de l'hébergement</label>
+          <select v-model="selectedSource" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-white">
+            <option value="toutes">Toutes</option>
             <option value="airbnb">Airbnb</option>
             <option value="booking">Booking</option>
             <option value="hotelscom">Hotels.com</option>
@@ -78,23 +80,23 @@
       <div v-for="hotel in hotels" :key="hotel.title" class="bg-white rounded-lg shadow-md overflow-hidden">
         <div class="relative h-48">
           <img 
-            :src="hotel.thumbnail" 
+            :src="hotel.thumbnail || '/images/No_image_available.svg.png'" 
             :alt="hotel.title" 
             class="w-full h-full object-cover"
           >
           <div class="absolute top-2 right-2 bg-blue-600 text-white px-2 py-1 rounded-md text-sm">
-            {{ selectedType }}
+            {{ selectedSource }}
           </div>
         </div>
         <div class="p-4">
           <h3 class="text-lg font-semibold text-gray-900 mb-2">{{ hotel.title }}</h3>
           <div class="flex items-center mb-2">
             <span class="text-yellow-400">★</span>
-            <span class="text-gray-600 ml-1">{{ hotel.rating || 'N/A' }}</span>
+            <span class="text-gray-600 ml-1">{{ hotel.unified_rating || 'N/A' }}</span>
           </div>
           <p class="text-gray-600 text-sm mb-4">{{ hotel.location || 'Centre-ville' }}, {{ selectedCity }}</p>
           <div class="flex justify-between items-center">
-            <span class="text-lg font-bold text-blue-600">{{ hotel.price?.value || hotel.price }}€</span>
+            <span class="text-lg font-bold text-blue-600">{{ hotel.unified_price?.value || hotel.unified_price }}€</span>
             <span class="text-sm text-gray-500">/nuit</span>
           </div>
         </div>
@@ -104,20 +106,52 @@
 </template>
 
 <script setup lang="ts">
-const selectedCity = ref('paris')
-const selectedType = ref('airbnb')
+const route = useRoute()
+
+// Lecture des paramètres forcés depuis l'URL
+const cityFromURL = route.query.city as string || 'toutes'
+const sourceFromURL = route.query.source as string || 'toutes'
+
+const selectedCity = ref(cityFromURL)
+const selectedSource = ref(sourceFromURL)
 const minPrice = ref('')
 const maxPrice = ref('')
 const hotels = ref([])
 const loading = ref(false)
 const error = ref(null)
 
+// Si city ou source vient de l'URL, on les "verrouille"
+const cityLocked = computed(() => route.query.city !== undefined)
+const sourceLocked = computed(() => route.query.source !== undefined)
+
 const fetchHotels = async () => {
   loading.value = true
   error.value = null
+
   try {
-    const response = await fetch(`http://localhost:5000/${selectedCity.value}/${selectedType.value}`)
+    const params = new URLSearchParams()
+
+    if (selectedCity.value.toLowerCase() !== 'toutes') {
+      params.append('city', selectedCity.value)
+    }
+
+    if (selectedSource.value.toLowerCase() !== 'toutes') {
+      params.append('source', selectedSource.value)
+    }
+
+    if (minPrice.value) {
+      params.append('minPrice', minPrice.value)
+    }
+
+    if (maxPrice.value) {
+      params.append('maxPrice', maxPrice.value)
+    }
+
+    const url = `http://localhost:5000/smart-search?${params.toString()}`
+    const response = await fetch(url)
+
     if (!response.ok) throw new Error('Erreur lors de la récupération des hôtels')
+
     hotels.value = await response.json()
   } catch (e) {
     error.value = e.message
@@ -133,15 +167,15 @@ onMounted(() => {
 })
 
 const resetFilters = () => {
-  selectedCity.value = 'paris'
-  selectedType.value = 'airbnb'
+  selectedCity.value = 'toutes'
+  selectedSource.value = 'toutes'
   minPrice.value = ''
   maxPrice.value = ''
   fetchHotels()
 }
 
 // Les filtres sont réactifs et mettront à jour l'affichage automatiquement
-watch([selectedCity, selectedType], () => {
+watch([selectedCity, selectedSource], () => {
   fetchHotels()
 })
 </script> 

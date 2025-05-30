@@ -55,163 +55,103 @@ def get_collection(city, source):
 
 @app.route("/smart-search", methods=["GET"])
 def smart_search():
-    city = request.args.get("city")
-    source = request.args.get("source")  # airbnb, booking, hotelscom
+    # Paramètres multiples
+    sources = request.args.getlist("source") or ["airbnb", "booking", "hotelscom"]
+    cities = request.args.getlist("city") or ["paris", "berlin", "london", "madrid", "rome"]
 
-    if not city or not source:
-        return jsonify({"error": "city and source are required"}), 400
+    valid_sources = {"airbnb", "booking", "hotelscom"}
+    valid_cities = {"paris", "berlin", "london", "madrid", "rome"}
 
-    collection = get_collection(city, source)
+    # Validation
+    if not all(src in valid_sources for src in sources):
+        return jsonify({"error": f"Invalid source. Must be in {', '.join(valid_sources)}"}), 400
+    if not all(city.lower() in valid_cities for city in cities):
+        return jsonify({"error": f"Invalid city. Must be in {', '.join(valid_cities)}"}), 400
 
-    # Filtres facultatifs
+    # Filtres
     min_price = request.args.get("min_price", type=float)
     max_price = request.args.get("max_price", type=float)
     min_score = request.args.get("min_score", type=float)
     max_distance = request.args.get("max_distance", type=float)
+    title_contains = request.args.get("title_contains")
 
-    sort_by = request.args.get("sort_by", "rating")  # price, rating, distance
-    sort_order = int(request.args.get("sort_order", -1))  # -1 = DESC, 1 = ASC
-
-    pipeline = []
-
-    # Construction du filtre $match
-    match_stage = {}
-
-    if min_price or max_price:
-        match_stage["price.value"] = {}
-        if min_price:
-            match_stage["price.value"]["$gte"] = min_price
-        if max_price:
-            match_stage["price.value"]["$lte"] = max_price
-
-    if min_score:
-        match_stage["rating"] = {"$gte": min_score}  # Airbnb
-        # ou "rating.score" pour Booking/HotelsCom si structure différente
-
-    if max_distance:
-        match_stage["distanceFromCenter"] = {"$lte": max_distance}
-
-    if match_stage:
-        pipeline.append({"$match": match_stage})
-
-    # Projection des champs utiles
-    pipeline.append({
-        "$project": {
-            "_id": 0,
-            "title": 1,
-            "price": 1,
-            "rating": 1,
-            "location": 1,
-            "distanceFromCenter": 1,
-            "link": 1,
-            "thumbnail": 1
-        }
-    })
-
-    # Mapping du champ de tri
-    sort_fields = {
-        "price": "price.value",
-        "rating": "rating" if source == "airbnb" else "rating.score",
-        "distance": "distanceFromCenter"
-    }
-
-    if sort_by in sort_fields:
-        pipeline.append({
-            "$sort": {sort_fields[sort_by]: sort_order}
-        })
-
-    # Limite des résultats
-    pipeline.append({"$limit": 20})
-
-    results = list(collection.aggregate(pipeline))
-    return jsonify(results)
-
-@app.route("/smart-search-multi", methods=["GET"])
-def smart_search_multi():
-    city = request.args.get("city")
-    if not city:
-        return jsonify({"error": "city is required"}), 400
-
-    min_price = request.args.get("min_price", type=float)
-    max_price = request.args.get("max_price", type=float)
-    min_score = request.args.get("min_score", type=float)
-    max_distance = request.args.get("max_distance", type=float)
-
-    sort_by = request.args.get("sort_by", "rating")  # rating, price, distance
+    sort_by = request.args.get("sort_by", "rating")
     sort_order = int(request.args.get("sort_order", -1))
 
-    sources = ["airbnb", "booking", "hotelscom"]
     all_results = []
 
-    for source in sources:
-        try:
-            collection = db[f"{city.lower()}_{source}"]
-        except:
-            continue
+    for city in cities:
+        for source in sources:
+            coll_name = f"{city.lower()}_{source}"
+            if coll_name not in db.list_collection_names():
+                continue
+            collection = db[coll_name]
 
-        pipeline = []
+            rating_expr = "$rating" if source == "airbnb" else "$rating.score"
+            pipeline = []
 
-        # Ajout d’un champ unifié pour le rating (selon la source)
-        rating_expr = "$rating" if source == "airbnb" else "$rating.score"
+            pipeline.append({
+                "$addFields": {
+                    "unified_rating": {
+                        "$cond": [{"$isNumber": rating_expr}, rating_expr, None]
+                    },
+                    "unified_price": "$price.value",
+                    "unified_distance": "$distanceFromCenter" if source == "booking" else None,
+                    "source": {"$literal": source},
+                    "city": {"$literal": city}
+                }
+            })
 
-        # Ajout d’un champ unifié et filtrage
-        add_fields = {
-            "unified_rating": {
-                "$cond": [{"$isNumber": rating_expr}, rating_expr, None]
-            },
-            "unified_price": "$price.value",
-            "unified_distance": "$distanceFromCenter",
-            "source": {"$literal": source}
-        }
+            match = {}
 
-        pipeline.append({"$addFields": add_fields})
+            if min_price is not None or max_price is not None:
+                match["unified_price"] = {}
+                if min_price is not None:
+                    match["unified_price"]["$gte"] = min_price
+                if max_price is not None:
+                    match["unified_price"]["$lte"] = max_price
 
-        match = {}
-        if min_price is not None or max_price is not None:
-            match["unified_price"] = {}
-            if min_price is not None:
-                match["unified_price"]["$gte"] = min_price
-            if max_price is not None:
-                match["unified_price"]["$lte"] = max_price
+            if min_score is not None:
+                match["unified_rating"] = {"$gte": min_score}
 
-        if min_score is not None:
-            match["unified_rating"] = {"$gte": min_score}
+            if max_distance is not None:
+                match["unified_distance"] = {"$lte": max_distance}
 
-        if max_distance is not None:
-            match["unified_distance"] = {"$lte": max_distance}
+            if title_contains:
+                match["title"] = {"$regex": title_contains, "$options": "i"}
 
-        if match:
-            pipeline.append({"$match": match})
+            if match:
+                pipeline.append({"$match": match})
 
-        # Project les champs standardisés
-        pipeline.append({
-            "$project": {
-                "_id": 0,
-                "title": 1,
-                "thumbnail": 1,
-                "link": 1,
-                "location": 1,
-                "unified_price": 1,
-                "unified_rating": 1,
-                "unified_distance": 1,
-                "source": 1
-            }
-        })
+            pipeline.append({
+                "$project": {
+                    "_id": 0,
+                    "title": 1,
+                    "thumbnail": 1,
+                    "link": 1,
+                    "location": 1,
+                    "unified_price": 1,
+                    "unified_rating": 1,
+                    "unified_distance": 1,
+                    "source": 1,
+                    "city": 1
+                }
+            })
 
-        results = list(collection.aggregate(pipeline))
-        all_results.extend(results)
+            results = list(collection.aggregate(pipeline))
+            all_results.extend(results)
 
-    # Tri en Python après agrégation
-    sort_key = {
+    # Tri
+    sort_key_map = {
         "rating": "unified_rating",
         "price": "unified_price",
         "distance": "unified_distance"
-    }.get(sort_by, "unified_rating")
-
+    }
+    sort_key = sort_key_map.get(sort_by, "unified_rating")
     all_results = [r for r in all_results if r.get(sort_key) is not None]
     all_results.sort(key=lambda x: x.get(sort_key), reverse=(sort_order == -1))
 
-    return jsonify(all_results[:20])  # Top 20
+    return jsonify(all_results[:20])
 
 # Config
 ALL_CITIES = ["paris", "berlin", "london", "madrid", "rome"]
